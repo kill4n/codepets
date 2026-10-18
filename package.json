@@ -12,13 +12,13 @@
     "gen:images": "node scripts/gen-readme-images.mjs"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-autostart": "^2.3.0"
   },
   "devDependencies": {
     "gifenc": "^1.0.3",
     "pngjs": "^7.0.0",
-    "typescript": "^5.8.0",
-    "vite": "^6.3.0"
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4"
   }
 }
