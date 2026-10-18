@@ -5,3 +5,5 @@ releases/*
 !releases/.gitkeep
 .DS_Store
 src-tauri/gen/
+*.swp
+*.swo
