@@ -51,6 +51,9 @@ async function doLoadManifest(m: Manifest) {
   // the speech bubble sits right above the sprite; tell CSS how tall the sprite is
   document.documentElement.style.setProperty("--sprite-h", `${Math.round(fh * m.scale * zoom)}px`);
   document.documentElement.style.setProperty("--label-h", `${m.labelH ?? 0}px`);
+  // pack-declared empty space under the feet: pull the name label up over it
+  const pull = m.labelH > 0 ? Math.round((m.labelOverlap ?? 0) * m.scale * zoom) : 0;
+  document.documentElement.style.setProperty("--label-pull", `${pull}px`);
   nameEl.classList.toggle("hidden", !(m.labelH > 0));
   sheets = new Map();
   for (const a of Object.values(m.animations)) {

@@ -65,7 +65,13 @@ pub fn child_position(parent: Pos, pw: i32, ph: i32, cw: i32, ch: i32, index: us
 /// around it fall through.
 pub fn collapsed_size(m: &Manifest) -> (f64, f64) {
     let [w, h] = m.frame_size;
-    (((w * m.scale) as f64 * m.zoom).round(), ((h * m.scale) as f64 * m.zoom).round() + m.label_h as f64)
+    (((w * m.scale) as f64 * m.zoom).round(), ((h * m.scale) as f64 * m.zoom).round() + m.label_h as f64 - label_pull(m))
+}
+
+/// How far (screen px) the name label is pulled up over the empty space under the sprite's feet.
+pub fn label_pull(m: &Manifest) -> f64 {
+    if m.label_h == 0 { return 0.0; }
+    (m.label_overlap * m.scale) as f64 * m.zoom
 }
 
 /// Window size while the bubble is open: wide enough for the text, taller by the bubble area.
@@ -393,6 +399,17 @@ mod tests {
     #[test] fn collapsed_window_is_exactly_the_sprite() {
         assert_eq!(collapsed_size(&manifest(96, 2)), (192.0, 192.0));
         assert_eq!(collapsed_size(&manifest(32, 4)), (128.0, 128.0));
+    }
+
+    #[test] fn name_label_is_pulled_up_over_the_empty_space_under_the_feet() {
+        let mut m = manifest(96, 2);
+        m.label_overlap = 8;
+        assert_eq!(collapsed_size(&m), (192.0, 192.0), "no label, nothing to pull");
+        m.label_h = LABEL_H;
+        assert_eq!(label_pull(&m), 16.0);
+        assert_eq!(collapsed_size(&m), (192.0, 192.0 + LABEL_H as f64 - 16.0));
+        let c = child_manifest(&m);
+        assert_eq!(label_pull(&c), 8.0, "half-size child pulls half as far");
     }
 
     #[test] fn open_rect_keeps_the_sprite_in_place() {

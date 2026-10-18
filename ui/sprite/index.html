@@ -6,14 +6,14 @@
   body{display:flex;flex-direction:column;justify-content:flex-end;align-items:center}
   #c{display:block;flex:none;image-rendering:pixelated;cursor:grab}
   /* session name under the sprite: a small pill, same width as the sprite, draggable like it */
-  #name{flex:none;height:var(--label-h,0px);line-height:var(--label-h,0px);max-width:100%;box-sizing:border-box;padding:0 6px;
+  #name{flex:none;margin-top:calc(var(--label-pull,0px) * -1);height:var(--label-h,0px);line-height:var(--label-h,0px);max-width:100%;box-sizing:border-box;padding:0 6px;
         font:10px/var(--label-h,0px) system-ui;color:#fff;background:rgba(20,20,30,.72);border-radius:9px;
         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;cursor:grab;
         transition:opacity 800ms ease}
   #name:empty,#name.hidden{display:none}
   #name.fade{opacity:0}
   /* comic-style speech bubble anchored over the sprite's head */
-  #tip{position:absolute;left:50%;bottom:calc(var(--sprite-h,128px) + var(--label-h,0px));transform:translate(-50%,-10px) scale(.6);transform-origin:50% 100%;
+  #tip{position:absolute;left:50%;bottom:calc(var(--sprite-h,128px) + var(--label-h,0px) - var(--label-pull,0px));transform:translate(-50%,-10px) scale(.6);transform-origin:50% 100%;
        width:max-content;max-width:calc(100% - 12px);box-sizing:border-box;
        background:#fffbe8;color:#1a1a22;border:2px solid #222;border-radius:10px;
        font:11px/1.35 system-ui;padding:5px 8px;white-space:normal;overflow-wrap:anywhere;text-align:center;

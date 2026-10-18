@@ -202,7 +202,7 @@ order.forEach((state, row) => {
 
 mkdirSync("assets/packs/default", { recursive: true });
 writeFileSync("assets/packs/default/sheet.png", PNG.sync.write(png));
-const manifest = { name: "Slime", frameSize: [F, F], scale: 2, animations: {} };
+const manifest = { name: "Slime", frameSize: [F, F], scale: 2, labelOverlap: 8, animations: {} };
 order.forEach((state, row) => {
   manifest.animations[state] = { sheet: "sheet.png", row, frames: frames[state], fps: fps[state], ...(state === "gone" ? { loop: false } : {}) };
 });
