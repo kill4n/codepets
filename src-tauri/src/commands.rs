@@ -21,6 +21,7 @@ pub struct Status {
     pub wander_after_secs: u32,
     pub show_name: bool,
     pub permission_wait_secs: u32,
+    pub version: &'static str,
 }
 
 #[tauri::command]
@@ -198,7 +199,7 @@ pub fn status_of(app: &App) -> Status {
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).unwrap_or(serde_json::json!({}));
     Status { hooks_installed: installer::is_installed(&settings, &cfg.hook_url()),
              poll_error: app.poll_error.borrow().clone(), server_error: app.server_error.borrow().clone(),
-             pack_warning: app.pack_warning.borrow().clone(), hook_url: cfg.hook_url(), token: cfg.token.clone(), pack: cfg.pack, size: cfg.size, wander: cfg.wander, wander_after_secs: cfg.wander_after_secs, show_name: cfg.show_name, permission_wait_secs: cfg.permission_wait_secs }
+             pack_warning: app.pack_warning.borrow().clone(), hook_url: cfg.hook_url(), token: cfg.token.clone(), pack: cfg.pack, size: cfg.size, wander: cfg.wander, wander_after_secs: cfg.wander_after_secs, show_name: cfg.show_name, permission_wait_secs: cfg.permission_wait_secs, version: env!("CARGO_PKG_VERSION") }
 }
 
 #[tauri::command]
@@ -245,3 +246,48 @@ pub fn do_set_pack(handle: &AppHandle, app: &App, name: String) -> Result<(), St
 
 #[tauri::command]
 pub fn get_config(app: State<Arc<App>>) -> Config { app.config.lock().unwrap().clone() }
+
+/// Hide an agent's sprite (and its subagents') without touching the session. It stays hidden until
+/// shown again or until the agent ends.
+#[tauri::command]
+pub fn hide_agent(handle: AppHandle, app: State<Arc<App>>, key: String) -> Result<(), String> {
+    if !app.store.lock().unwrap().views(Instant::now()).iter().any(|v| v.key == key) { return Err("unknown session".into()); }
+    app.hidden.lock().unwrap().insert(key.clone());
+    app.wanderers.lock().unwrap().remove(&label_for(&key));
+    crate::windows::manager::close_agent_windows(&handle, &key, &app.placement);
+    Ok(())
+}
+
+/// Bring a hidden agent's sprite (and its subagents') back.
+#[tauri::command(async)]
+pub fn show_agent(handle: AppHandle, app: State<Arc<App>>, key: String) -> Result<(), String> {
+    app.hidden.lock().unwrap().remove(&key);
+    let Some(m) = app.manifest.lock().unwrap().clone() else { return Ok(()) };
+    let views = app.store.lock().unwrap().views(Instant::now());
+    // the agent first, so its children can hug it
+    for v in views.iter().filter(|v| v.key == key).chain(views.iter().filter(|v| v.parent.as_deref() == Some(key.as_str()))) {
+        if !crate::windows::manager::is_hidden(&app.hidden, v) {
+            crate::windows::manager::reveal(&handle, v, &m, &app.positions, &app.placement);
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_hidden(app: State<Arc<App>>) -> Vec<String> {
+    let mut v: Vec<String> = app.hidden.lock().unwrap().iter().cloned().collect();
+    v.sort();
+    v
+}
+
+/// End a session by asking its `claude` process to exit. Only for top-level sessions whose pid is
+/// known; the UI asks for confirmation first.
+#[tauri::command(async)]
+pub fn terminate_agent(app: State<Arc<App>>, key: String) -> Result<(), String> {
+    let view = app.store.lock().unwrap().views(Instant::now()).into_iter().find(|v| v.key == key).ok_or("unknown session")?;
+    if view.parent.is_some() { return Err("subagents end with their session".into()); }
+    if view.visible == crate::state::Visible::Gone { return Err("that session already ended".into()); }
+    let pid = view.pid.ok_or("this session has no known process to terminate")?;
+    log::info!("terminate_agent {} pid {pid}", view.name);
+    crate::terminate::terminate(pid)
+}

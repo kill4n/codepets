@@ -35,7 +35,8 @@ Prefer a fox? Packs are swappable from the menu, and you can draw your own.
 - **Double-click to focus** the terminal of that session (iTerm, Terminal, VS Code, Warp, Cursor, Ghostty).
 - **Drag anywhere.** Positions are remembered per session name; click for a speech bubble with the folder, state and elapsed time.
 - **Idle life.** Sprites that have been idle for a while take short strolls and come back home.
-- **Menu-bar settings**: pack, size, session name labels, wandering, permission handling, launch at login.
+- **Menu-bar settings** and a **Settings window**: pack, size, session name labels, wandering, permission handling, launch at login.
+- **Hide or end a session** from the Settings window: hide a sprite without touching its session, or ask the session's `claude` process to exit (two clicks to confirm).
 - Cross-platform (macOS, Windows, Linux) with a transparent, always-on-top, click-through-when-closed window per sprite.
 
 ## Install
@@ -108,7 +109,7 @@ npm run gen:images      # regenerate the README artwork from the packs
 cargo tauri dev
 ```
 
-- Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (unit + integration) and `npm run build` (type-checks the UI).
+- Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (unit + integration), `npm test` (Vitest, UI logic) and `npm run build` (type-checks the UI).
 - Visual check without Claude Code: `npm run dev` and open `http://localhost:1420/sprite/index.html?mock=working` (or `idle`, `needs_input`, `delegating`, `waiting_peer`, `gone`).
 - The dev build loads its UI from the Vite dev server, so "Launch at login" is only offered by the installed app.
 

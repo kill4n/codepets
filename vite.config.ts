@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import { resolve } from "node:path";
 
 export default defineConfig({
@@ -6,6 +6,7 @@ export default defineConfig({
   publicDir: resolve(__dirname, "ui/public"),
   clearScreen: false,
   server: { port: 1420, strictPort: true },
+  test: { environment: "happy-dom", include: ["**/*.test.ts"] },
   build: {
     outDir: "dist",
     emptyOutDir: true,
