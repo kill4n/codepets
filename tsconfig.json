@@ -5,7 +5,8 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "noEmit": true,
-    "lib": ["ES2022", "DOM", "ESNext.Disposable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "ESNext.Disposable"],
+    "skipLibCheck": true,
     "types": ["vite/client"]
   },
   "include": ["ui/**/*.ts"]

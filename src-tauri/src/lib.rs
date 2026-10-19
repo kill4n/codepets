@@ -5,6 +5,7 @@ pub mod focus;
 pub mod installer;
 pub mod packs;
 pub mod state;
+pub mod terminate;
 pub mod tray;
 pub mod windows;
 
@@ -28,6 +29,8 @@ pub struct App {
     pub store: Mutex<Store>,
     pub positions: Mutex<Positions>,
     pub placement: Mutex<Placement>,
+    /// agents whose sprite the user hid (keys); cleared when the agent goes away
+    pub hidden: Mutex<std::collections::HashSet<String>>,
     pub wanderers: Mutex<windows::wander::Wanderers>,
     /// permission prompts held for the bubble, and how long to hold them
     pub parked: Arc<collector::hooks_server::Parked>,
@@ -122,6 +125,7 @@ pub fn run() {
                 config: Mutex::new(cfg.clone()), store: Mutex::new(Store::new()),
                 positions: Mutex::new(Positions::load(positions_path())),
                 placement: Mutex::new(Placement::default()),
+                hidden: Mutex::new(Default::default()),
                 wanderers: Mutex::new(windows::wander::Wanderers::default()),
                 parked: Arc::new(collector::hooks_server::Parked::default()),
                 permission_wait: Arc::new(Mutex::new(Duration::from_secs(cfg.permission_wait_secs as u64))),
@@ -175,7 +179,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_manifest, commands::get_pack_url, commands::report_position, commands::list_agents,
             commands::get_status, commands::install_hooks, commands::uninstall_hooks, commands::list_pack_names,
-            commands::set_pack, commands::get_config, commands::set_bubble, commands::set_size, commands::focus_terminal, commands::set_wander, commands::set_show_name, commands::answer_permission, commands::set_permission_wait, commands::ui_log
+            commands::set_pack, commands::get_config, commands::set_bubble, commands::set_size, commands::focus_terminal, commands::set_wander, commands::set_show_name, commands::answer_permission, commands::set_permission_wait, commands::hide_agent, commands::show_agent, commands::list_hidden, commands::terminate_agent, commands::ui_log
         ])
         .build(tauri::generate_context!())
         .expect("error while building codepets")
@@ -195,7 +199,7 @@ fn mirror(handle: &tauri::AppHandle, st: &Arc<App>, changes: Vec<Change>) {
         if let Change::Removed(key) = ch { st.wanderers.lock().unwrap().remove(&windows::manager::label_for(key)); }
     }
     let m = st.manifest.lock().unwrap().clone();
-    windows::manager::apply_changes(handle, &changes, m.as_ref(), &st.positions, &st.placement);
+    windows::manager::apply_changes(handle, &changes, m.as_ref(), &st.positions, &st.placement, &st.hidden);
     notify_settings(handle, st);
 }
 

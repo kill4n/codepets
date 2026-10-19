@@ -118,7 +118,7 @@ fn build_menu(app: &AppHandle, st: &App) -> tauri::Result<Menu<tauri::Wry>> {
     let autostart_item = CheckMenuItem::with_id(app, "autostart:toggle",
         if dev_build { "Launch at login (installed app only)" } else { "Launch at login" },
         !dev_build, autostart && !dev_build, None::<&str>)?;
-    let advanced = MenuItem::with_id(app, "advanced", "Advanced…", true, None::<&str>)?;
+    let advanced = MenuItem::with_id(app, "advanced", "Settings…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
     let mut items: Vec<Box<dyn tauri::menu::IsMenuItem<tauri::Wry>>> = vec![
@@ -203,7 +203,7 @@ pub fn open_settings(app: &AppHandle) {
     }
     let _ = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings/index.html".into()))
         .title("CodePets")
-        .inner_size(420.0, 520.0)
+        .inner_size(460.0, 640.0)
         .resizable(true)
         .build();
 }
@@ -213,7 +213,7 @@ mod tests {
     use super::*;
     fn status(hooks: bool, poll: Option<&str>, server: Option<&str>) -> Status {
         Status { hooks_installed: hooks, poll_error: poll.map(Into::into), server_error: server.map(Into::into), pack_warning: None,
-            hook_url: "u".into(), token: "t".into(), pack: "default".into(), size: SpriteSize::Normal, wander: true, wander_after_secs: 20, show_name: true, permission_wait_secs: 60 }
+            hook_url: "u".into(), token: "t".into(), pack: "default".into(), size: SpriteSize::Normal, wander: true, wander_after_secs: 20, show_name: true, permission_wait_secs: 60, version: "0" }
     }
     #[test] fn tooltip_shows_first_warning() {
         assert_eq!(tooltip_text(None), "CodePets");

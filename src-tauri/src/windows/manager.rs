@@ -130,11 +130,18 @@ impl Placement {
     }
 }
 
+/// True when the user hid this agent's sprite, or its parent's (children follow the parent).
+pub fn is_hidden(hidden: &Mutex<HashSet<String>>, v: &AgentView) -> bool {
+    let h = hidden.lock().unwrap();
+    h.contains(&v.key) || v.parent.as_ref().is_some_and(|p| h.contains(p))
+}
+
 pub fn apply_changes(app: &AppHandle, changes: &[Change], manifest: Option<&Manifest>,
-                     positions: &Mutex<Positions>, placement: &Mutex<Placement>) {
+                     positions: &Mutex<Positions>, placement: &Mutex<Placement>, hidden: &Mutex<HashSet<String>>) {
     for ch in changes {
         match ch {
             Change::Added(v) | Change::Updated(v) => {
+                if is_hidden(hidden, v) { continue; }
                 let label = label_for_view(v);
                 if app.get_webview_window(&label).is_some() {
                     let should_move = placement.lock().unwrap().renamed(&label, v);
@@ -145,6 +152,7 @@ pub fn apply_changes(app: &AppHandle, changes: &[Change], manifest: Option<&Mani
                 push_state(app, v);
             }
             Change::Removed(key) => {
+                hidden.lock().unwrap().remove(key);
                 for label in [label_for(key), format!("sprite-sub-{}", key.replace([':', '/', '.'], "_"))] {
                     placement.lock().unwrap().removed(&label);
                     if let Some(w) = app.get_webview_window(&label) { let _ = w.close(); }
@@ -152,6 +160,22 @@ pub fn apply_changes(app: &AppHandle, changes: &[Change], manifest: Option<&Mani
             }
         }
     }
+}
+
+/// Close the sprite windows of an agent and of its subagents (the agent itself keeps running).
+pub fn close_agent_windows(app: &AppHandle, key: &str, placement: &Mutex<Placement>) {
+    let mut labels = vec![label_for(key)];
+    labels.extend(child_labels(app, key));
+    for label in labels {
+        placement.lock().unwrap().removed(&label);
+        if let Some(w) = app.get_webview_window(&label) { let _ = w.close(); }
+    }
+}
+
+/// Bring a hidden agent's sprite back (creates the window if it is missing).
+pub fn reveal(app: &AppHandle, v: &AgentView, manifest: &Manifest, positions: &Mutex<Positions>, placement: &Mutex<Placement>) {
+    ensure_window(app, v, manifest, positions, placement);
+    push_state(app, v);
 }
 
 /// Emit only to this agent's window: `emit` on a window broadcasts to every webview.
