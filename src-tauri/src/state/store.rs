@@ -1,7 +1,7 @@
 use super::machine::{apply_hook, apply_poll, mark_missed};
 use super::agent_state::{child_session_id, provisional_name};
 use super::{AgentId, AgentState, Visible};
-use crate::collector::event::{AgentEvent, EventKind, PollKind, PollState};
+use crate::collector::event::{AgentEvent, EventKind, PolledAgent, PollKind, PollState};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
@@ -110,13 +110,19 @@ impl Store {
             EventKind::Snapshot(list) => {
                 let mut changes = vec![];
                 let mut seen = HashSet::new();
+                let is_terminal = |p: &PolledAgent| p.kind == PollKind::Background
+                    && matches!(p.state, Some(PollState::Done | PollState::Failed | PollState::Stopped));
+                // `--all` also lists the finished background record of a session that is running again
+                // interactively (same session id): the live record wins, or the agent would flip between
+                // gone and working on every poll.
+                let live: HashSet<&str> = list.iter().filter(|p| !is_terminal(p)).map(|p| p.session_id.as_str()).collect();
                 for p in list {
                     if p.session_id.is_empty() { continue; }
                     let id = AgentId { host: ev.host.clone(), session_id: p.session_id.clone() };
+                    let terminal = is_terminal(p);
+                    if terminal && live.contains(p.session_id.as_str()) { continue; }
                     // `--all` keeps listing finished background agents: never (re)create one that is
                     // already terminal, or it would come back as a phantom gone window after each sweep.
-                    let terminal = p.kind == PollKind::Background
-                        && matches!(p.state, Some(PollState::Done | PollState::Failed | PollState::Stopped));
                     if terminal && !self.agents.contains_key(&id.key()) { continue; }
                     seen.insert(id.key());
                     changes.extend(self.upsert(id, now, |s| apply_poll(s, p, now)));
@@ -219,6 +225,19 @@ mod tests {
         let mut st = Store::new();
         st.apply(&snap(&[("s1", "n", PollStatus::Busy)]));
         assert!(st.apply(&snap(&[("s1", "n", PollStatus::Busy)])).is_empty());
+    }
+
+    #[test] fn a_finished_background_record_does_not_fight_the_live_session_with_the_same_id() {
+        let mut st = Store::new();
+        let rec = |kind, status, state| PolledAgent {
+            session_id: "s1".into(), name: Some("n".into()), cwd: None, kind, status, waiting_for: None, state, pid: Some(1), id: None };
+        let both = AgentEvent { host: "h".into(), session_id: String::new(), at: Instant::now(), kind: EventKind::Snapshot(vec![
+            rec(PollKind::Background, None, Some(PollState::Done)),
+            rec(PollKind::Interactive, Some(PollStatus::Busy), None)]) };
+        let ch = st.apply(&both);
+        assert_eq!(ch.len(), 1, "one Added, no flip-flop");
+        assert!(matches!(&ch[0], Change::Added(v) if v.visible == Visible::Working));
+        assert!(st.apply(&both).is_empty(), "stable on the next poll: nothing to redraw");
     }
 
     #[test] fn snapshot_adds_and_marks_missing() {
