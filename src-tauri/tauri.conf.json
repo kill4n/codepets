@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "CodePets",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "identifier": "dev.kill4n.codepets",
   "build": {
     "frontendDist": "../ui/dist",

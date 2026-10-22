@@ -137,6 +137,7 @@ fn build_menu(app: &AppHandle, st: &App) -> tauri::Result<Menu<tauri::Wry>> {
 /// Rebuild the tray menu from the current state (settings, agents, warnings) and refresh the tooltip.
 pub fn refresh_menu(app: &AppHandle, st: &App) {
     let Some(tray) = app.tray_by_id("main") else { return };
+    log::debug!("tray: rebuilding the menu");
     match build_menu(app, st) {
         Ok(menu) => { if let Err(e) = tray.set_menu(Some(menu)) { log::warn!("cannot set tray menu: {e}"); } }
         Err(e) => log::warn!("cannot build tray menu: {e}"),
