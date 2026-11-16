@@ -110,5 +110,13 @@ if a test's expectation is genuinely wrong, say why in the commit message.
 ## Agents
 
 Project agents live in `.claude/agents/`, and all of them follow the TDD rules above:
-`tdd-developer` (general features and fixes in Rust or UI), `state-machine` (agent-state logic),
-`pack-author` (sprite packs), `tauri-reviewer` (review against the invariants and TDD), `release-manager` (version bumps/PRs).
+- `backend-dev`: Rust core in `src-tauri/` (hooks server, poller, windows, tray, config, installer, commands).
+- `frontend-dev`: TypeScript UI in `ui/` (sprite window, bubble, Settings window).
+- `state-machine`: agent-state logic (`collector/event.rs`, `state/`).
+- `pack-author`: sprite packs and their generators.
+- `tdd-developer`: changes that cross both sides, or anything the specialists above do not cover.
+- `tauri-reviewer`: read-only review against the invariants and TDD.
+- `release-manager`: version bumps, PRs and tags.
+
+A change to a command or serialized type touches both sides: do the Rust half with `backend-dev` and the TS half with
+`frontend-dev` (or `tdd-developer` for one pass), and keep `ui/shared/types.ts` in sync.

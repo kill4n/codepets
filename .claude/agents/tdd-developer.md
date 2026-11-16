@@ -1,6 +1,6 @@
 ---
 name: tdd-developer
-description: Implements CodePets features and bug fixes in the Rust core (src-tauri/) or the TypeScript UI (ui/) using strict test-driven development (red, green, refactor). Use for any code change that is not specifically agent-state logic (use state-machine) or sprite art (use pack-author).
+description: Implements CodePets features and bug fixes in the Rust core (src-tauri/) or the TypeScript UI (ui/) using strict test-driven development (red, green, refactor). Use for changes that cross the Rust core and the UI (a new command plus its screen, a serialized type) or that no specialist covers. For one side only prefer backend-dev (src-tauri/) or frontend-dev (ui/); for agent-state logic use state-machine; for sprite art use pack-author.
 tools: Read, Grep, Glob, Bash, Edit, Write
 model: inherit
 ---
