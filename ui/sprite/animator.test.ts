@@ -55,4 +55,20 @@ describe("Animator", () => {
     a.play("gone");
     expect(a.tick(0).sx).toBe(0);
   });
+
+  it("plays the pack's own error and compacting animations when it has them", () => {
+    const full: Manifest = { ...manifest, animations: { ...manifest.animations,
+      error: { sheet: "c.png", row: 6, frames: 2, fps: 10, loop: true }, compacting: { sheet: "c.png", row: 7, frames: 2, fps: 10, loop: true } } };
+    expect(new Animator(full, "error").tick(0)).toEqual({ sheet: "c.png", sx: 0, sy: 120 });
+    expect(new Animator(full, "compacting").tick(0)).toEqual({ sheet: "c.png", sx: 0, sy: 140 });
+  });
+
+  it("falls back for packs made before those states: error looks like needs_input, compacting like working", () => {
+    const old: Manifest = { ...manifest, animations: { ...manifest.animations, needs_input: { sheet: "a.png", row: 5, frames: 2, fps: 10, loop: true } } };
+    expect(new Animator(old, "error").tick(0).sy).toBe(100);
+    expect(new Animator(old, "compacting").tick(0).sy).toBe(20);
+    const a = new Animator(old, "idle");
+    a.play("compacting");
+    expect(a.tick(0).sy).toBe(20);
+  });
 });

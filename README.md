@@ -19,6 +19,8 @@ Running several Claude Code sessions at once means constantly tabbing between te
 | jumping with a red "!" | **needs your input**: a permission prompt or a question is waiting |
 | little clones around it | **delegating**: it spawned subagents (each one gets its own tiny sprite) |
 | staring at a clock | **waiting for a peer**: it sent a message to another agent and is waiting for the reply |
+| a red body with an X over its head | **error**: the turn ended with an API error (rate limit, server error, ...); it stays flagged until you send the next prompt |
+| squeezed between two arrows | **compacting**: Claude Code is compacting the conversation context |
 | melting away | **done**: the session ended; the sprite fades out |
 
 ![The slime's six animations: working, idle, needs input, delegating, waiting for a peer, done](docs/images/slime-states.gif)
@@ -57,7 +59,7 @@ Requirements: Claude Code 2.1.224 or newer (`claude agents --json` must exist).
 ## Quick start
 
 1. Launch CodePets. It lives in the menu bar (tray); sprites appear for every running Claude Code session.
-2. Open the menu and choose **Connect to Claude Code**. This adds `http` hooks to `~/.claude/settings.json` (a backup is written first) so state changes reach CodePets instantly. Sessions started after that will report every event.
+2. Open the menu and choose **Connect to Claude Code**. This adds `http` hooks to `~/.claude/settings.json` (a backup is written first) so state changes reach CodePets instantly. Sessions started after that will report every event. If you connected with an older version, choose **Connect to Claude Code** again to also receive the compaction and API-error events.
 3. Send a prompt in any session and watch its sprite get to work.
 
 Everything else is in the same menu: pack, size, labels, wandering, how long a permission prompt is held for the bubble, launch at login, and the list of agents (click one to focus its terminal).
@@ -84,7 +86,7 @@ Design and engineering records live in [`doc/`](doc/): the [spec](doc/specs/2026
 
 ## Sprite packs
 
-A pack is a folder under `assets/packs/<name>/` with a `pack.json` and one or more PNG sprite sheets (one row per animation). Six animations are required: `working`, `idle`, `needs_input`, `delegating`, `waiting_peer`, `gone`.
+A pack is a folder under `assets/packs/<name>/` with a `pack.json` and one or more PNG sprite sheets (one row per animation). Six animations are required: `working`, `idle`, `needs_input`, `delegating`, `waiting_peer`, `gone`. Two more are optional: `error` and `compacting`. A pack without them still works (`error` plays `needs_input`, `compacting` plays `working`).
 
 ```json
 {
@@ -110,7 +112,7 @@ cargo tauri dev
 ```
 
 - Tests: `cargo test --manifest-path src-tauri/Cargo.toml` (unit + integration), `npm test` (Vitest, UI logic) and `npm run build` (type-checks the UI).
-- Visual check without Claude Code: `npm run dev` and open `http://localhost:1420/sprite/index.html?mock=working` (or `idle`, `needs_input`, `delegating`, `waiting_peer`, `gone`).
+- Visual check without Claude Code: `npm run dev` and open `http://localhost:1420/sprite/index.html?mock=working` (or `idle`, `needs_input`, `delegating`, `waiting_peer`, `compacting`, `error`, `gone`).
 - The dev build loads its UI from the Vite dev server, so "Launch at login" is only offered by the installed app.
 
 ## Releases

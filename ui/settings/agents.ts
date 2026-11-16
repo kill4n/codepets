@@ -13,7 +13,7 @@ export const CONFIRM_MS = 4000;
 
 const STATE: Record<string, string> = {
   working: "working", idle: "idle", needs_input: "needs input", delegating: "delegating",
-  waiting_peer: "waiting for a peer", gone: "done",
+  waiting_peer: "waiting for a peer", compacting: "compacting", error: "error", gone: "done",
 };
 
 export function stateText(a: AgentView): string {

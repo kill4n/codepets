@@ -51,10 +51,17 @@ pub fn apply_hook(s: &mut AgentState, h: &HookEvent, now: Instant) {
         "SubagentStart" => { s.subagents = s.subagents.saturating_add(1); s.visible }
         "SubagentStop" => { s.subagents = s.subagents.saturating_sub(1);
             if s.visible == Visible::Delegating { Visible::Working } else { s.visible } }
+        // compaction runs mid-turn: it ends back in the turn (a manual /compact is corrected by the poll)
+        "PreCompact" => Visible::Compacting,
+        "PostCompact" => Visible::Working,
+        "StopFailure" => { s.waiting_for = h.error.clone(); Visible::Error }
         "SessionEnd" => Visible::Gone,
         _ => s.visible,
     };
-    s.set_visible(effective(s, base), now);
+    let next = effective(s, base);
+    // the error kind only means something while the error is shown
+    if s.visible == Visible::Error && next != Visible::Error { s.waiting_for = None; }
+    s.set_visible(next, now);
 }
 
 pub fn apply_poll(s: &mut AgentState, p: &PolledAgent, now: Instant) {
@@ -82,11 +89,15 @@ pub fn apply_poll(s: &mut AgentState, p: &PolledAgent, now: Instant) {
             PollState::Done | PollState::Failed | PollState::Stopped => Visible::Gone,
             PollState::Unknown => s.visible,
         },
+        // a compaction can outlast the hook window: the poll reports busy throughout
+        (_, Some(PollStatus::Busy), _) if s.visible == Visible::Compacting => Visible::Compacting,
         (_, Some(PollStatus::Busy), _) => {
             if s.visible == Visible::WaitingPeer { s.sent_message = false; s.peer = None; }
             s.waiting_for = None;
             Visible::Working
         }
+        // a failed turn leaves the session idle: keep the error flagged until a new turn starts
+        (_, Some(PollStatus::Idle), _) if s.visible == Visible::Error => Visible::Error,
         (_, Some(PollStatus::Idle), _) => {
             // idle with no recent hook: a lost SubagentStop must not pin the sprite in Delegating
             s.subagents = 0;
@@ -109,7 +120,7 @@ mod tests {
     use std::time::Duration;
 
     fn hook(event: &str) -> HookEvent {
-        HookEvent { event: event.into(), cwd: None, tool_name: None, notification_type: None, recipient: None, agent_id: None, agent_type: None, tool_summary: None }
+        HookEvent { event: event.into(), cwd: None, tool_name: None, notification_type: None, recipient: None, agent_id: None, agent_type: None, tool_summary: None, error: None }
     }
     fn fresh() -> (AgentState, Instant) {
         let now = Instant::now();
@@ -118,6 +129,81 @@ mod tests {
     fn polled(status: Option<PollStatus>) -> PolledAgent {
         PolledAgent { session_id: "abcdef123456".into(), name: Some("buddy-1".into()), cwd: None,
             kind: PollKind::Interactive, status, waiting_for: None, state: None, pid: Some(4242), id: None }
+    }
+
+    fn stop_failure(kind: &str) -> HookEvent { let mut h = hook("StopFailure"); h.error = Some(kind.into()); h }
+
+    #[test] fn pre_compact_shows_compacting() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &hook("UserPromptSubmit"), now);
+        apply_hook(&mut s, &hook("PreCompact"), now);
+        assert_eq!(s.visible, Visible::Compacting);
+    }
+
+    #[test] fn post_compact_goes_back_to_working() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &hook("PreCompact"), now);
+        apply_hook(&mut s, &hook("PostCompact"), now);
+        assert_eq!(s.visible, Visible::Working);
+    }
+
+    #[test] fn compacting_is_not_turned_into_delegating_by_running_subagents() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &hook("SubagentStart"), now);
+        apply_hook(&mut s, &hook("PreCompact"), now);
+        assert_eq!(s.visible, Visible::Compacting);
+    }
+
+    #[test] fn compacting_outlives_the_hook_window_while_the_poll_says_busy() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &hook("PreCompact"), now);
+        apply_poll(&mut s, &polled(Some(PollStatus::Busy)), now + HOOK_WINS_FOR + Duration::from_secs(1));
+        assert_eq!(s.visible, Visible::Compacting, "a long compaction must not flip back to working");
+    }
+
+    #[test] fn compacting_ends_when_the_poll_says_idle() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &hook("PreCompact"), now);
+        apply_poll(&mut s, &polled(Some(PollStatus::Idle)), now + HOOK_WINS_FOR + Duration::from_secs(1));
+        assert_eq!(s.visible, Visible::Idle);
+    }
+
+    #[test] fn stop_failure_is_error_and_remembers_why() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &hook("UserPromptSubmit"), now);
+        apply_hook(&mut s, &stop_failure("rate_limit"), now);
+        assert_eq!(s.visible, Visible::Error);
+        assert_eq!(s.waiting_for.as_deref(), Some("rate_limit"));
+    }
+
+    #[test] fn error_survives_an_idle_poll_after_the_hook_window() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &stop_failure("server_error"), now);
+        apply_poll(&mut s, &polled(Some(PollStatus::Idle)), now + HOOK_WINS_FOR + Duration::from_secs(1));
+        assert_eq!(s.visible, Visible::Error, "the failed turn stays flagged until the user acts");
+    }
+
+    #[test] fn a_new_prompt_clears_the_error() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &stop_failure("server_error"), now);
+        apply_hook(&mut s, &hook("UserPromptSubmit"), now + Duration::from_secs(30));
+        assert_eq!(s.visible, Visible::Working);
+        assert_eq!(s.waiting_for, None, "the error kind must not leak into the next turn");
+    }
+
+    #[test] fn a_tool_call_after_an_error_drops_the_error_kind() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &stop_failure("rate_limit"), now);
+        apply_hook(&mut s, &hook("PreToolUse"), now + Duration::from_secs(30));
+        assert_eq!((s.visible, s.waiting_for), (Visible::Working, None));
+    }
+
+    #[test] fn a_busy_poll_clears_the_error() {
+        let (mut s, now) = fresh();
+        apply_hook(&mut s, &stop_failure("server_error"), now);
+        apply_poll(&mut s, &polled(Some(PollStatus::Busy)), now + HOOK_WINS_FOR + Duration::from_secs(1));
+        assert_eq!(s.visible, Visible::Working, "busy means a new turn started, e.g. from the terminal");
+        assert_eq!(s.waiting_for, None);
     }
 
     #[test] fn new_agent_has_provisional_name_and_idle() {

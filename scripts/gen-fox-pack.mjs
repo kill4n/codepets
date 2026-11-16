@@ -1,9 +1,9 @@
 // Generates assets/packs/fox/{sheet.png,pack.json}: a pixel-art fox mascot.
-// 64x64 frames, 8 columns x 6 rows (one row per state). State is shown by a coloured scarf + props/pose.
+// 64x64 frames, 8 columns x 8 rows (one row per state). State is shown by a coloured scarf + props/pose.
 import { PNG } from "pngjs";
 import { writeFileSync, mkdirSync } from "node:fs";
 
-const F = 64, COLS = 8, ROWS = 6;
+const F = 64, COLS = 8, ROWS = 8;
 const png = new PNG({ width: F * COLS, height: F * ROWS });
 
 // ---------- primitives ----------
@@ -56,8 +56,9 @@ const RED = [232, 64, 64], YELLOW = [255, 220, 90], SCREEN = [120, 200, 255];
 const SCARF = {
   working: [70, 140, 255], idle: [150, 152, 170], needs_input: [255, 120, 20],
   delegating: [70, 190, 110], waiting_peer: [170, 110, 255], gone: [100, 100, 110],
+  error: [220, 50, 50], compacting: [255, 120, 200],
 };
-const order = ["working", "idle", "needs_input", "delegating", "waiting_peer", "gone"];
+const order = ["working", "idle", "needs_input", "delegating", "waiting_peer", "gone", "error", "compacting"];
 
 // ---------- fox ----------
 // Frame-space anchors: head centre (32,27), body centre (32,46). All drawing takes `a` (alpha) and `s` (scale, for gone).
@@ -185,6 +186,19 @@ function miniFox(x, y, state, bob) {
   px(x - 2, cy - 1, INK); px(x + 2, cy - 1, INK);
   hline(x - 3, cy + 1, 7, SCARF[state]);
 }
+function cross(x, y, r) {
+  for (let t = -r; t <= r; t++) {
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) { px(x + t + dx, y + t + dy, INK); px(x + t + dx, y - t + dy, INK); }
+  }
+  for (let t = -r; t <= r; t++) { px(x + t, y + t, RED); px(x + t, y - t, RED); px(x + t + 1, y + t, RED); px(x + t + 1, y - t, RED); }
+}
+function puff(x, y, r, alpha) { ellipse(x, y, r, r, [110, 114, 126, alpha]); }
+function arrow(tx, y, dir) {
+  // tip at tx, pointing at the fox (dir 1 = right, -1 = left)
+  const sx = dir > 0 ? tx - 8 : tx + 2;
+  hline(sx, y, 7, INK); hline(sx + 1, y, 5, [255, 120, 200]);
+  for (let i = 0; i < 4; i++) { const h = 3 - i; for (let k = -h; k <= h; k++) px(tx - i * dir, y + k, k === -h || k === h ? INK : [255, 120, 200]); }
+}
 function dots(x, y, n) { for (let i = 0; i < n; i++) px(x + i * 3, y, INK); }
 function sparkle(x, y) { px(x, y, YELLOW); px(x - 1, y, YELLOW); px(x + 1, y, YELLOW); px(x, y - 1, YELLOW); px(x, y + 1, YELLOW); }
 
@@ -218,6 +232,17 @@ const anims = {
     clock(o.x + 53, o.y + 12, f);
     dots(o.x + 8, o.y + 12, (f % 3) + 1);
   },
+  error(o, f) {
+    const shake = [-2, 2, -1, 1, -1, 1][f];
+    fox(o, "error", { dy: f % 2, look: shake > 0 ? 1 : -1, wide: true, mouth: "o", earDroop: 4, armL: 130, armR: 130, tailWag: shake });
+    cross(o.x + 32, o.y + 7 + (f % 2), 4);
+    puff(o.x + 12 + (f % 3), o.y + 28 - f * 2, 2, 220 - f * 25); puff(o.x + 52 - (f % 3), o.y + 24 - f * 2, 2, 200 - f * 25);
+  },
+  compacting(o, f) {
+    const sq = [0, 1, 2, 3, 3, 2, 1, 0][f];
+    fox(o, "compacting", { dy: sq, eyesOpen: sq < 2, mouth: sq > 1 ? "flat" : "smile", earDroop: sq, armL: 100, armR: 100, tailWag: 0 });
+    arrow(o.x + 11 + sq * 3, o.y + 42, 1); arrow(o.x + 53 - sq * 3, o.y + 42, -1);
+  },
   gone(o, f) {
     const t = f / 7, alpha = Math.round(255 * (1 - t));
     fox(o, "gone", { scale: 1 - t * 0.5, alpha, dy: Math.round(t * 4), eyesOpen: f < 3, mouth: "flat", earDroop: Math.round(t * 4), armL: 10, armR: 10 });
@@ -228,8 +253,8 @@ const anims = {
     }
   },
 };
-const frames = { working: 8, idle: 6, needs_input: 6, delegating: 8, waiting_peer: 8, gone: 8 };
-const fps = { working: 10, idle: 3, needs_input: 8, delegating: 8, waiting_peer: 4, gone: 10 };
+const frames = { working: 8, idle: 6, needs_input: 6, delegating: 8, waiting_peer: 8, gone: 8, error: 6, compacting: 8 };
+const fps = { working: 10, idle: 3, needs_input: 8, delegating: 8, waiting_peer: 4, gone: 10, error: 8, compacting: 6 };
 
 order.forEach((state, row) => {
   for (let col = 0; col < frames[state]; col++) anims[state]({ x: col * F, y: row * F }, col);

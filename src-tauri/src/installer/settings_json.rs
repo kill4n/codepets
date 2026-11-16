@@ -1,8 +1,9 @@
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 
-pub const HOOK_EVENTS: [&str; 10] = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse",
-    "PostToolUse", "Stop", "PermissionRequest", "Notification", "SubagentStart", "SubagentStop"];
+pub const HOOK_EVENTS: [&str; 13] = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse",
+    "PostToolUse", "Stop", "PermissionRequest", "Notification", "SubagentStart", "SubagentStop",
+    "PreCompact", "PostCompact", "StopFailure"];
 
 #[derive(Debug)]
 pub enum InstallError { Io(std::io::Error), Json(serde_json::Error), Shape(String) }
@@ -132,6 +133,14 @@ mod tests {
     use super::*;
     use serde_json::json;
     const URL: &str = "http://127.0.0.1:7433/hook";
+
+    #[test] fn merge_registers_the_compaction_and_failure_hooks() {
+        let mut s = json!({});
+        merge_hooks(&mut s, URL, "tok").unwrap();
+        for ev in ["PreCompact", "PostCompact", "StopFailure"] {
+            assert_eq!(s["hooks"][ev].as_array().map(Vec::len), Some(1), "{ev}");
+        }
+    }
 
     #[test] fn merge_into_empty_adds_all_events() {
         let mut s = json!({"model":"x"});

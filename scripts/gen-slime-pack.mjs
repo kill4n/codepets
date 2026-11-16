@@ -1,10 +1,10 @@
 // Generates assets/packs/default/{sheet.png,sheet.json}: an anime cel-shaded slime (Rimuru-style).
-// 96x96 frames, 8 columns x 6 rows (one row per state). Flat colour zones with hard edges,
+// 96x96 frames, 8 columns x 8 rows (one row per state). Flat colour zones with hard edges,
 // a big hard-edged white highlight, thin dark outline, no face. Body tint per state.
 import { PNG } from "pngjs";
 import { writeFileSync, mkdirSync } from "node:fs";
 
-const F = 96, COLS = 8, ROWS = 6;
+const F = 96, COLS = 8, ROWS = 8;
 const png = new PNG({ width: F * COLS, height: F * ROWS });
 
 // ---------- primitives ----------
@@ -44,13 +44,14 @@ const WHITE = [255, 255, 255, 255], RED = [232, 64, 64, 255], YELLOW = [255, 236
 const TINT = {
   working: { c: hex("#6A9BFF"), k: 0.5 }, idle: { c: RIMURU.base, k: 0 }, needs_input: { c: hex("#FFC95C"), k: 0.85 },
   delegating: { c: hex("#5FE0A8"), k: 0.45 }, waiting_peer: { c: hex("#B48CFF"), k: 0.5 }, gone: { c: hex("#9AA3AE"), k: 0.7 },
+  error: { c: hex("#FF4D4D"), k: 0.85 }, compacting: { c: hex("#FF7FC8"), k: 0.8 },
 };
 const zones = (state) => {
   const { c, k } = TINT[state];
   const t = (z) => mix(z, c, k);
   return { base: t(RIMURU.base), shadow: t(RIMURU.shadow), deep: t(RIMURU.deep), halo: mix(t(RIMURU.halo), WHITE, 0.3), line: mix(RIMURU.line, c, k * 0.4) };
 };
-const order = ["working", "idle", "needs_input", "delegating", "waiting_peer", "gone"];
+const order = ["working", "idle", "needs_input", "delegating", "waiting_peer", "gone", "error", "compacting"];
 
 // ---------- slime ----------
 // base of the blob sits at y = 72 in frame space, centred at x = 48.
@@ -134,6 +135,23 @@ function clock(x, y, frame) {
   for (let t = 1; t <= 7; t++) rect(x + Math.round(Math.sin(a) * t), y - Math.round(Math.cos(a) * t), 1, 1, INK);
   hline(x - 4, y, 4, INK);
 }
+function cross(x, y, r, alpha = 255) {
+  // bold red X with an ink outline: something broke
+  for (const [c, w] of [[withAlpha(INK, alpha), 7], [withAlpha(RED, alpha), 3]]) {
+    for (let t = -r; t <= r; t++) { rect(x + t - (w >> 1), y + t - (w >> 1), w, w, c); rect(x + t - (w >> 1), y - t - (w >> 1), w, w, c); }
+  }
+}
+function puff(x, y, r, alpha) { circle(x, y, r, withAlpha(hex("#6B7280"), alpha)); circle(x - 1, y - 1, Math.max(1, r - 2), withAlpha(hex("#9CA3AF"), alpha)); }
+function squeezeArrow(tx, y, dir) {
+  // arrow whose tip is at tx, pointing at the slime (dir 1 = right, -1 = left): the context being pressed together
+  const PINK = hex("#FF7FC8"), sx = dir > 0 ? tx - 16 : tx + 5;
+  rect(sx, y - 2, 11, 5, INK); rect(sx + 1, y - 1, 9, 3, PINK);
+  for (let i = 0; i < 7; i++) {
+    const x = tx - i * dir, h = 6 - i;
+    rect(x, y - h - 1, 1, 2 * h + 3, INK);
+    if (h >= 1) rect(x - dir, y - h, 1, 2 * h + 1, PINK);
+  }
+}
 function dots(x, y, n) { for (let i = 0; i < n; i++) circle(x + i * 6, y, 2, INK); }
 function sparkle(x, y, c = YELLOW) { rect(x - 1, y - 4, 3, 9, c); rect(x - 4, y - 1, 9, 3, c); px(x - 3, y - 3, c); px(x + 3, y - 3, c); px(x - 3, y + 3, c); px(x + 3, y + 3, c); }
 function miniSlime(o, x, y, state, bob) {
@@ -184,6 +202,20 @@ const anims = {
     clock(o.x + 80, o.y + 16, f);
     dots(o.x + 8, o.y + 16, (f % 3) + 1);
   },
+  error(o, f) {
+    const shake = [-3, 3, -2, 2, -1, 1][f];
+    slime(o, "error", { lean: shake, sx: 1 + (f % 2) * 0.02, sy: 1 - (f % 2) * 0.03 });
+    cross(o.x + 48, o.y + 13 + (f % 2), 7);
+    puff(o.x + 20 + (f % 3) * 2, o.y + 40 - f * 2, 3 + (f % 2), 220 - f * 25);
+    puff(o.x + 74 - (f % 3) * 2, o.y + 34 - f * 2, 3, 200 - f * 25);
+  },
+  compacting(o, f) {
+    const sq = [0, 0.08, 0.16, 0.22, 0.22, 0.16, 0.08, 0][f];
+    slime(o, "compacting", { sx: 1 - sq * 1.15, sy: 1 + sq * 0.35 });
+    squeezeArrow(o.x + 18 + Math.round(sq * 60), o.y + 52, 1);
+    squeezeArrow(o.x + 78 - Math.round(sq * 60), o.y + 52, -1);
+    if (f >= 3 && f <= 5) sparkle(o.x + 48, o.y + 18, hex("#FFFFFF"));
+  },
   gone(o, f) {
     const t = f / 7, alpha = Math.round(255 * (1 - t * 0.9));
     slime(o, "gone", { sx: 1 + t * 0.5, sy: 1 - t * 0.85, alpha });
@@ -193,8 +225,8 @@ const anims = {
     }
   },
 };
-const frames = { working: 8, idle: 6, needs_input: 6, delegating: 8, waiting_peer: 8, gone: 8 };
-const fps = { working: 10, idle: 3, needs_input: 8, delegating: 8, waiting_peer: 4, gone: 10 };
+const frames = { working: 8, idle: 6, needs_input: 6, delegating: 8, waiting_peer: 8, gone: 8, error: 6, compacting: 8 };
+const fps = { working: 10, idle: 3, needs_input: 8, delegating: 8, waiting_peer: 4, gone: 10, error: 8, compacting: 6 };
 
 order.forEach((state, row) => {
   for (let col = 0; col < frames[state]; col++) anims[state]({ x: col * F, y: row * F }, col);

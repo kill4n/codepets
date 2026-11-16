@@ -51,7 +51,8 @@ pub fn status_line(s: &Status) -> String {
 pub fn visible_label(v: Visible) -> &'static str {
     match v {
         Visible::Working => "working", Visible::Idle => "idle", Visible::NeedsInput => "needs input",
-        Visible::Delegating => "delegating", Visible::WaitingPeer => "waiting for peer", Visible::Gone => "done",
+        Visible::Delegating => "delegating", Visible::WaitingPeer => "waiting for peer", Visible::Compacting => "compacting", Visible::Error => "error",
+        Visible::Gone => "done",
     }
 }
 

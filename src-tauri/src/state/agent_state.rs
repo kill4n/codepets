@@ -11,7 +11,7 @@ impl AgentId {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum Visible { Working, Idle, NeedsInput, Delegating, WaitingPeer, Gone }
+pub enum Visible { Working, Idle, NeedsInput, Delegating, WaitingPeer, Compacting, Error, Gone }
 
 #[derive(Debug, Clone)]
 pub struct AgentState {

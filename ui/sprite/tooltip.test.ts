@@ -80,3 +80,19 @@ describe("render", () => {
     expect(outer).not.toHaveBeenCalled();
   });
 });
+
+describe("compacting and error states", () => {
+  it("names the compaction", () => {
+    render(el, view({ visible: "compacting" }), 0);
+    expect(el.textContent).toContain("compacting its context");
+  });
+  it("shows why the turn failed", () => {
+    render(el, view({ visible: "error", waiting_for: "rate_limit" }), 0);
+    expect(el.textContent).toContain("error (rate_limit)");
+  });
+  it("shows a plain error when the kind is unknown", () => {
+    render(el, view({ visible: "error", waiting_for: null }), 0);
+    expect(el.textContent).toContain("error ·");
+  });
+});
+
