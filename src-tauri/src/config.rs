@@ -41,6 +41,9 @@ pub struct Config {
     /// Seconds a sprite must be idle before it starts strolling.
     #[serde(default = "default_wander_after")]
     pub wander_after_secs: u32,
+    /// Look for a new release on launch and every few hours.
+    #[serde(default = "default_true")]
+    pub auto_update: bool,
     /// Absolute path to the `claude` binary; overrides PATH lookup (GUI apps get a minimal PATH).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claude_path: Option<String>,
@@ -48,7 +51,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { port: 7433, token: generate_token(), pack: "default".into(), bind_all: false, size: SpriteSize::Normal, permission_wait_secs: 60, show_name: true, wander: true, wander_after_secs: 20, claude_path: None }
+        Self { port: 7433, token: generate_token(), pack: "default".into(), bind_all: false, size: SpriteSize::Normal, permission_wait_secs: 60, show_name: true, wander: true, wander_after_secs: 20, auto_update: true, claude_path: None }
     }
 }
 
@@ -151,6 +154,15 @@ mod tests {
         c.save(&p).unwrap();
         assert_eq!(Config::load(&p).claude_path.as_deref(), Some("/opt/claude"));
     }
+    #[test] fn auto_update_defaults_to_on_for_old_configs() {
+        let c: Config = serde_json::from_str(r#"{"port":7433,"token":"0123456789abcdef0123456789abcdef","pack":"default","bind_all":false}"#).unwrap();
+        assert!(c.auto_update);
+        let off = Config { auto_update: false, ..c };
+        let d = tempfile::tempdir().unwrap();
+        off.save(&d.path().join("c.json")).unwrap();
+        assert!(!Config::load(&d.path().join("c.json")).auto_update);
+    }
+
     #[test] fn urls_and_bind() {
         let mut c = Config::load(std::path::Path::new("/nonexistent/x.json"));
         assert_eq!(c.hook_url(), "http://127.0.0.1:7433/hook");

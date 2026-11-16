@@ -37,6 +37,7 @@ Prefer a fox? Packs are swappable from the menu, and you can draw your own.
 - **Double-click to focus** the terminal of that session (iTerm, Terminal, VS Code, Warp, Cursor, Ghostty).
 - **Drag anywhere.** Positions are remembered per session name; click for a speech bubble with the folder, state and elapsed time.
 - **Idle life.** Sprites that have been idle for a while take short strolls and come back home.
+- **Updates from inside the app.** CodePets checks for a new release shortly after launch and every few hours; when one exists the menu shows **Update to vX.Y.Z…** and Settings offers **Install and restart**. Downloads are verified against a signing key built into the app.
 - **Menu-bar settings** and a **Settings window**: pack, size, session name labels, wandering, permission handling, launch at login.
 - **Hide or end a session** from the Settings window: hide a sprite without touching its session, or ask the session's `claude` process to exit (two clicks to confirm).
 - Cross-platform (macOS, Windows, Linux) with a transparent, always-on-top, click-through-when-closed window per sprite.
@@ -53,6 +54,8 @@ Download the installer for your platform from the [latest release](https://githu
 | Linux | `.AppImage`, `.deb` or `.rpm` |
 
 The macOS builds are not notarized yet: on first launch use Control-click → Open.
+
+Updates install themselves from the app (Settings → Updates, or the tray menu), except for the `.deb` and `.rpm` packages on Linux, which your package manager has to update. Versions before the first one with this feature must be updated by hand once.
 
 Requirements: Claude Code 2.1.224 or newer (`claude agents --json` must exist).
 

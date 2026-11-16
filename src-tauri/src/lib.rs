@@ -7,6 +7,7 @@ pub mod packs;
 pub mod state;
 pub mod terminate;
 pub mod tray;
+pub mod updater;
 pub mod windows;
 
 use collector::event::AgentEvent;
@@ -42,6 +43,9 @@ pub struct App {
     pub poll_error: watch::Receiver<Option<String>>,
     pub server_error: watch::Sender<Option<String>>,
     pub pack_warning: watch::Sender<Option<String>>,
+    /// where the self-update stands (the tray and the Settings window read it) and the update found, ready to install
+    pub update: watch::Sender<updater::UpdateState>,
+    pub pending_update: Mutex<Option<tauri_plugin_updater::Update>>,
 }
 
 impl App {
@@ -100,6 +104,7 @@ pub fn run() {
     tauri::Builder::default()
         // must be the first plugin: a second launch just opens the settings of the running one
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::open_settings(app)))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .setup(move |app| {
             // tray pet: no Dock icon, no Cmd-Tab entry
@@ -137,6 +142,7 @@ pub fn run() {
                 permission_wait: Arc::new(Mutex::new(Duration::from_secs(cfg.permission_wait_secs as u64))),
                 manifest: Mutex::new(manifest), packs_root: root, host: host.clone(), poll_error: err_rx,
                 server_error: watch::channel(None).0, pack_warning: watch::channel(pack_warn).0,
+                update: watch::channel(updater::UpdateState::Idle).0, pending_update: Mutex::new(None),
             });
             app.manage(state.clone());
 
@@ -157,10 +163,30 @@ pub fn run() {
             });
             collector::poller::spawn_poller(host.clone(), cfg.claude_path.clone(), tx.clone(), err_tx);
 
+            // look for a new release shortly after launch and every few hours (not in dev builds)
+            if !cfg!(debug_assertions) {
+                let (h3, st3) = (handle.clone(), state.clone());
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(updater::FIRST_CHECK_AFTER).await;
+                    let mut tick = tokio::time::interval(Duration::from_secs(60));
+                    let mut last = None;
+                    loop {
+                        tick.tick().await;
+                        let enabled = st3.config.lock().unwrap().auto_update;
+                        if updater::check_due(enabled, last, Instant::now(), updater::CHECK_EVERY) {
+                            last = Some(Instant::now());
+                            updater::check(&h3, &st3).await;
+                        }
+                    }
+                });
+            }
+
             // event loop: apply events, mirror windows, sweep gone agents, reflect warnings in the tray
             let st = state.clone();
             let (mut poll_rx, mut server_rx, mut pack_rx) =
                 (st.poll_error.clone(), st.server_error.subscribe(), st.pack_warning.subscribe());
+            let mut update_rx = st.update.subscribe();
+            let mut update_label = updater::tray_label(&update_rx.borrow());
             tauri::async_runtime::spawn(async move {
                 let mut sweep = tokio::time::interval(Duration::from_secs(1));
                 loop {
@@ -177,6 +203,11 @@ pub fn run() {
                         Ok(()) = poll_rx.changed() => tray::refresh_warning(&handle, &st),
                         Ok(()) = server_rx.changed() => tray::refresh_warning(&handle, &st),
                         Ok(()) = pack_rx.changed() => tray::refresh_warning(&handle, &st),
+                        // rebuilding the menu closes it if it is open: only do it when its update entry changes
+                        Ok(()) = update_rx.changed() => {
+                            let label = updater::tray_label(&update_rx.borrow_and_update());
+                            if label != update_label { update_label = label; tray::refresh_menu(&handle, &st); }
+                        }
                     }
                 }
             });
@@ -185,7 +216,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_manifest, commands::get_pack_url, commands::report_position, commands::list_agents,
             commands::get_status, commands::install_hooks, commands::uninstall_hooks, commands::list_pack_names,
-            commands::set_pack, commands::get_config, commands::set_bubble, commands::set_size, commands::focus_terminal, commands::set_wander, commands::set_show_name, commands::answer_permission, commands::set_permission_wait, commands::hide_agent, commands::show_agent, commands::list_hidden, commands::terminate_agent, commands::ui_log
+            commands::set_pack, commands::get_config, commands::set_bubble, commands::set_size, commands::focus_terminal, commands::set_wander, commands::set_show_name, commands::answer_permission, commands::set_permission_wait, commands::hide_agent, commands::show_agent, commands::list_hidden, commands::terminate_agent, commands::check_update, commands::install_update, commands::set_auto_update, commands::ui_log
         ])
         .build(tauri::generate_context!())
         .expect("error while building codepets")
@@ -273,6 +304,15 @@ mod tests {
             .expect("bundle.resources must map ../assets/packs/ (map form avoids the _up_ rewrite)");
         assert_eq!(target.trim_end_matches('/'), PACKS_RESOURCE_DIR);
         assert!(Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/packs/default/pack.json").is_file());
+    }
+
+    #[test] fn updater_is_configured_or_the_plugin_would_fail_at_startup() {
+        let conf: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        assert_eq!(conf["bundle"]["createUpdaterArtifacts"], true, "releases need the signed updater bundles");
+        let u = &conf["plugins"]["updater"];
+        assert!(u["pubkey"].as_str().is_some_and(|k| k.len() > 40), "minisign public key");
+        let ends = u["endpoints"].as_array().expect("endpoints");
+        assert!(!ends.is_empty() && ends.iter().all(|e| e.as_str().is_some_and(|e| e.starts_with("https://"))), "https endpoints only");
     }
 
     #[test] fn initial_pack_loads_default_from_repo() {

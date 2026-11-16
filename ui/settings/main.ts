@@ -1,14 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { enable, disable, isEnabled } from "@tauri-apps/plugin-autostart";
-import type { AgentView } from "../shared/types";
+import type { AgentView, UpdateState } from "../shared/types";
 import { el } from "../shared/dom";
 import { agentRow, type AgentActions } from "./agents";
+import { updateRows, type UpdateActions } from "./updates";
 
 interface Status {
   hooks_installed: boolean; poll_error: string | null; server_error: string | null; pack_warning: string | null;
   hook_url: string; token: string; pack: string; size: "small" | "normal" | "large"; wander: boolean; wander_after_secs: number;
   show_name: boolean; permission_wait_secs: number; version: string;
+  auto_update: boolean; update: UpdateState;
 }
 
 const PERMISSION_WAITS: [number, string][] = [
@@ -39,6 +41,12 @@ const actions: AgentActions = {
   hide: (key) => void run("hide_agent", { key }),
   show: (key) => void run("show_agent", { key }),
   terminate: (key) => void run("terminate_agent", { key }, "Asked the session to exit."),
+};
+
+const updateActions: UpdateActions = {
+  check: () => void run("check_update"),
+  install: () => void run("install_update"),
+  setAuto: (enabled) => void run("set_auto_update", { enabled }),
 };
 
 function section(title: string, ...children: (Node | string)[]) {
@@ -119,6 +127,7 @@ function render() {
     section("Permissions",
       el("p", "When Claude Code asks for a permission, the sprite's bubble can answer it. If you don't answer in time, the terminal asks as usual.", { class: "muted" }),
       el("label", "Hold a request for the bubble ", {}, waitSel)),
+    section("Updates", ...updateRows(status.update, status.version, status.auto_update, updateActions)),
     section("System", el("label", undefined, {}, auto, " Launch at login")),
     section(`Agents (${agents.length})`, list, ...(hiddenCount > 0 ? [showAll] : [])),
     el("p", `CodePets ${status.version}`, { class: "muted footer" }),

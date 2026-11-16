@@ -19,6 +19,13 @@
     "active": true,
     "targets": "all",
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.icns", "icons/icon.ico"],
-    "resources": { "../assets/packs/": "assets/packs/" }
+    "resources": { "../assets/packs/": "assets/packs/" },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEyMzQ4MEMwNDJCQzE0MTIKUldRU0ZMeEN3SUEwb2wza2VVbkdCWGRWUy9vVkJvaGFidlA4blFlaTkzMWNrTnNjaDFjK0llZWcK",
+      "endpoints": ["https://github.com/kill4n/codepets/releases/latest/download/latest.json"]
+    }
   }
 }

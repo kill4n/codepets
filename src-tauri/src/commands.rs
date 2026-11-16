@@ -22,6 +22,8 @@ pub struct Status {
     pub show_name: bool,
     pub permission_wait_secs: u32,
     pub version: &'static str,
+    pub auto_update: bool,
+    pub update: crate::updater::UpdateState,
 }
 
 #[tauri::command]
@@ -199,7 +201,24 @@ pub fn status_of(app: &App) -> Status {
         .and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).unwrap_or(serde_json::json!({}));
     Status { hooks_installed: installer::is_installed(&settings, &cfg.hook_url()),
              poll_error: app.poll_error.borrow().clone(), server_error: app.server_error.borrow().clone(),
-             pack_warning: app.pack_warning.borrow().clone(), hook_url: cfg.hook_url(), token: cfg.token.clone(), pack: cfg.pack, size: cfg.size, wander: cfg.wander, wander_after_secs: cfg.wander_after_secs, show_name: cfg.show_name, permission_wait_secs: cfg.permission_wait_secs, version: env!("CARGO_PKG_VERSION") }
+             pack_warning: app.pack_warning.borrow().clone(), hook_url: cfg.hook_url(), token: cfg.token.clone(), pack: cfg.pack, size: cfg.size, wander: cfg.wander, wander_after_secs: cfg.wander_after_secs, show_name: cfg.show_name, permission_wait_secs: cfg.permission_wait_secs, version: env!("CARGO_PKG_VERSION"), auto_update: cfg.auto_update, update: app.update.borrow().clone() }
+}
+
+/// Look for a newer release now (the Settings "Check now" button).
+#[tauri::command]
+pub async fn check_update(handle: AppHandle, app: State<'_, Arc<App>>) -> Result<crate::updater::UpdateState, String> {
+    Ok(crate::updater::check(&handle, &app).await)
+}
+
+/// Install the update found by the last check and restart.
+#[tauri::command]
+pub async fn install_update(handle: AppHandle, app: State<'_, Arc<App>>) -> Result<(), String> { crate::updater::install(&handle, &app).await }
+
+#[tauri::command]
+pub fn set_auto_update(app: State<Arc<App>>, enabled: bool) -> Result<(), String> {
+    let mut cfg = app.config.lock().unwrap();
+    cfg.auto_update = enabled;
+    cfg.save(&config_path()).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
