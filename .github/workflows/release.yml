@@ -73,7 +73,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          uploadUpdaterJson: true
           tagName: ${{ github.ref_name }}
           releaseName: "CodePets ${{ github.ref_name }}"
           releaseBody: "Builds for macOS (Apple Silicon and Intel), Windows and Linux. macOS builds are unsigned unless signing secrets are configured: use Control-click → Open on first launch."
