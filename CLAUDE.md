@@ -57,6 +57,10 @@ Claude Code http hooks ─► collector/hooks_server (127.0.0.1:7433, bearer tok
 - **Poll vs. stale records**: terminal background records (`done|failed|stopped`) must not create or resurrect agents;
   duplicate records for one session must not make the store flip each poll (#25).
 - **Provisional names**: a hook-first agent is named `session_id[:8]`; never persist positions under it.
+- **Updater**: `plugins.updater` (public key, https endpoints) and `bundle.createUpdaterArtifacts` in `tauri.conf.json`
+  must stay or the plugin fails at startup (a test checks). Releases are signed with the minisign key stored in the repo secrets
+  `TAURI_SIGNING_PRIVATE_KEY` and `..._PASSWORD`; the private key never goes in the repo. Losing that key means installed
+  apps can no longer update (they only trust the embedded public key). Update checks are skipped in dev builds.
 - **Pack resources**: `tauri.conf.json` `bundle.resources` maps `../assets/packs/` → `assets/packs/` (map form; a test
   enforces it). Release builds read only bundled packs.
 

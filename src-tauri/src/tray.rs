@@ -122,12 +122,17 @@ fn build_menu(app: &AppHandle, st: &App) -> tauri::Result<Menu<tauri::Wry>> {
     let advanced = MenuItem::with_id(app, "advanced", "Settings…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
+    let update_label = crate::updater::tray_label(&st.update.borrow());
     let mut items: Vec<Box<dyn tauri::menu::IsMenuItem<tauri::Wry>>> = vec![
         Box::new(status_item), Box::new(hooks_item), Box::new(PredefinedMenuItem::separator(app)?),
         Box::new(agents_menu), Box::new(PredefinedMenuItem::separator(app)?),
         Box::new(pack_menu), Box::new(size_menu), Box::new(name_item), Box::new(wander_item), Box::new(wander_after), Box::new(perm_menu), Box::new(autostart_item),
         Box::new(PredefinedMenuItem::separator(app)?), Box::new(advanced), Box::new(quit),
     ];
+    if let Some(label) = update_label {
+        let installing = status.update == crate::updater::UpdateState::Installing;
+        items.insert(1, Box::new(MenuItem::with_id(app, "update:install", label, !installing, None::<&str>)?));
+    }
     if let Some(w) = status.pack_warning.as_deref() {
         items.insert(1, Box::new(MenuItem::with_id(app, "pack_warning", format!("⚠ {w}"), false, None::<&str>)?));
     }
@@ -154,6 +159,13 @@ fn on_menu(app: &AppHandle, id: &str) {
     let result: Result<(), String> = match id {
         "quit" => { app.exit(0); Ok(()) }
         "advanced" => { open_settings(app); Ok(()) }
+        "update:install" => {
+            let (h, st2) = (app.clone(), st.clone());
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = crate::updater::install(&h, &st2).await { log::warn!("update: {e}"); }
+            });
+            Ok(())
+        }
         "hooks:toggle" => {
             let installed = commands::status_of(&st).hooks_installed;
             commands::do_set_hooks(&st, !installed)
@@ -215,7 +227,7 @@ mod tests {
     use super::*;
     fn status(hooks: bool, poll: Option<&str>, server: Option<&str>) -> Status {
         Status { hooks_installed: hooks, poll_error: poll.map(Into::into), server_error: server.map(Into::into), pack_warning: None,
-            hook_url: "u".into(), token: "t".into(), pack: "default".into(), size: SpriteSize::Normal, wander: true, wander_after_secs: 20, show_name: true, permission_wait_secs: 60, version: "0" }
+            hook_url: "u".into(), token: "t".into(), pack: "default".into(), size: SpriteSize::Normal, wander: true, wander_after_secs: 20, show_name: true, permission_wait_secs: 60, version: "0", auto_update: true, update: crate::updater::UpdateState::Idle }
     }
     #[test] fn tooltip_shows_first_warning() {
         assert_eq!(tooltip_text(None), "CodePets");
