@@ -79,6 +79,13 @@ pub fn is_installed(settings: &Value, url: &str) -> bool {
             groups.as_array().is_some_and(|arr| arr.iter().any(|g| group_has_url(g, url)))))
 }
 
+/// True when every event we register carries our hook; false for a config written by an older version.
+pub fn is_up_to_date(settings: &Value, url: &str) -> bool {
+    let Some(hooks) = settings.get("hooks").and_then(|h| h.as_object()) else { return false };
+    HOOK_EVENTS.iter().all(|ev| hooks.get(*ev).and_then(|g| g.as_array())
+        .is_some_and(|arr| arr.iter().any(|g| group_has_url(g, url))))
+}
+
 fn read_settings(path: &Path) -> Result<Value, InstallError> {
     if !path.exists() { return Ok(json!({})); }
     let text = std::fs::read_to_string(path)?;
@@ -140,6 +147,15 @@ mod tests {
         for ev in ["PreCompact", "PostCompact", "StopFailure"] {
             assert_eq!(s["hooks"][ev].as_array().map(Vec::len), Some(1), "{ev}");
         }
+    }
+
+    #[test] fn an_install_from_an_older_version_is_not_up_to_date() {
+        let mut s = json!({});
+        merge_hooks(&mut s, URL, "tok").unwrap();
+        assert!(is_up_to_date(&s, URL));
+        s["hooks"].as_object_mut().unwrap().remove("PreCompact");
+        assert!(is_installed(&s, URL) && !is_up_to_date(&s, URL));
+        assert!(!is_up_to_date(&json!({}), URL));
     }
 
     #[test] fn merge_into_empty_adds_all_events() {

@@ -113,6 +113,12 @@ pub fn run() {
             let manifest = manifest.map(|m| windows::manager::effective_manifest(&m, cfg.size, cfg.show_name));
             cfg.pack = pack;
             let _ = cfg.save(&config_path());
+            // An install from an older version lacks newer events (the tray offers only "Disconnect"), so top it up.
+            let sp = installer::default_settings_path();
+            let current = std::fs::read_to_string(&sp).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+            if current.is_some_and(|v| installer::is_installed(&v, &cfg.hook_url()) && !installer::is_up_to_date(&v, &cfg.hook_url())) {
+                if let Err(e) = installer::install(&sp, &cfg.hook_url(), &cfg.token) { log::warn!("cannot update hooks: {e}"); }
+            }
             // Sessions collected on this machine use a fixed host id: the OS hostname changes with the
             // network (Mac.lan vs name.local) and positions are keyed by host, so sprites would get lost.
             // Remote hosts (future multi-PC) carry their own id in the events they send.
