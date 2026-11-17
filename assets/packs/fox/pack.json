@@ -42,6 +42,18 @@
       "frames": 8,
       "fps": 10,
       "loop": false
+    },
+    "error": {
+      "sheet": "sheet.png",
+      "row": 6,
+      "frames": 6,
+      "fps": 8
+    },
+    "compacting": {
+      "sheet": "sheet.png",
+      "row": 7,
+      "frames": 8,
+      "fps": 6
     }
   }
 }

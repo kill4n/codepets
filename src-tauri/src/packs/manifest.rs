@@ -185,6 +185,22 @@ mod tests {
         assert_eq!(list_packs(&root), vec!["default".to_string(), "fox".to_string()]);
     }
 
+    #[test] fn bundled_packs_draw_the_optional_error_and_compacting_states() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../assets/packs");
+        for pack in ["default", "fox"] {
+            let m = load_pack(&root.join(pack)).unwrap();
+            for state in ["error", "compacting"] { assert!(m.animations.contains_key(state), "{pack} lacks {state}"); }
+        }
+    }
+
+    #[test] fn a_pack_without_the_optional_states_still_loads() {
+        let dir = tempfile::tempdir().unwrap();
+        write_png(&dir.path().join("sheet.png"), 64, 96);
+        fs::write(dir.path().join("pack.json"), full_json("sheet.png")).unwrap();
+        let m = load_pack(dir.path()).unwrap();
+        assert!(!m.animations.contains_key("error") && !m.animations.contains_key("compacting"));
+    }
+
     #[test] fn list_pack_infos_returns_dir_and_manifest_name() {
         let root = tempfile::tempdir().unwrap();
         fs::create_dir(root.path().join("a")).unwrap();

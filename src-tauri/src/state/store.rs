@@ -162,12 +162,12 @@ mod tests {
     fn hook_ev(sid: &str, event: &str, cwd: Option<&str>) -> AgentEvent {
         AgentEvent { host: "h".into(), session_id: sid.into(), at: Instant::now(),
             kind: EventKind::Hook(HookEvent { event: event.into(), cwd: cwd.map(Into::into),
-                tool_name: None, notification_type: None, recipient: None, agent_id: None, agent_type: None, tool_summary: None }) }
+                tool_name: None, notification_type: None, recipient: None, agent_id: None, agent_type: None, tool_summary: None, error: None }) }
     }
     fn sub_ev(sid: &str, event: &str, agent: &str, kind: Option<&str>) -> AgentEvent {
         AgentEvent { host: "h".into(), session_id: sid.into(), at: Instant::now(),
             kind: EventKind::Hook(HookEvent { event: event.into(), cwd: None, tool_name: None, notification_type: None,
-                recipient: None, agent_id: Some(agent.into()), agent_type: kind.map(Into::into), tool_summary: None }) }
+                recipient: None, agent_id: Some(agent.into()), agent_type: kind.map(Into::into), tool_summary: None, error: None }) }
     }
 
     #[test] fn subagent_start_creates_a_child_sprite_next_to_its_parent() {

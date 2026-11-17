@@ -28,6 +28,8 @@ pub struct HookEvent {
     pub agent_type: Option<String>,
     /// Short human summary of `tool_input` (the Bash command, a file path, ...) for permission prompts.
     pub tool_summary: Option<String>,
+    /// `StopFailure` only: why the turn ended (`rate_limit`, `server_error`, ...).
+    pub error: Option<String>,
 }
 
 /// Longest tool input the bubble will show. Anything longer is marked truncated and the bubble
@@ -108,6 +110,7 @@ pub fn parse_hook(host: &str, body: &serde_json::Value) -> Result<AgentEvent, Pa
     let tool_summary = if matches!(event.as_str(), "PermissionRequest" | "PreToolUse" | "PostToolUse") {
         summarize_tool_input(tool_name.as_deref(), body.get("tool_input"))
     } else { None };
+    let error = if event == "StopFailure" { str_field("error") } else { None };
     let recipient = if tool_name.as_deref() == Some("SendMessage") {
         body.pointer("/tool_input/to").and_then(|v| v.as_str()).map(str::to_string)
     } else { None };
@@ -123,6 +126,7 @@ pub fn parse_hook(host: &str, body: &serde_json::Value) -> Result<AgentEvent, Pa
             agent_id: str_field("agent_id"),
             agent_type: str_field("agent_type"),
             tool_summary,
+            error,
         }),
         at: Instant::now(),
     })
@@ -166,6 +170,16 @@ mod tests {
         let EventKind::Hook(h) = ev.kind else { panic!() };
         assert_eq!(h.tool_name.as_deref(), Some("SendMessage"));
         assert_eq!(h.recipient.as_deref(), Some("buddy-12"));
+    }
+
+    #[test]
+    fn stop_failure_carries_the_error_kind() {
+        let body = json!({"session_id":"abc","hook_event_name":"StopFailure","error":"rate_limit"});
+        let EventKind::Hook(h) = parse_hook("mac", &body).unwrap().kind else { panic!() };
+        assert_eq!(h.error.as_deref(), Some("rate_limit"));
+        let body = json!({"session_id":"abc","hook_event_name":"Stop","error":"ignored"});
+        let EventKind::Hook(h) = parse_hook("mac", &body).unwrap().kind else { panic!() };
+        assert_eq!(h.error, None, "only StopFailure has an error kind");
     }
 
     #[test]

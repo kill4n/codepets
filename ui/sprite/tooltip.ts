@@ -2,7 +2,8 @@ import type { AgentView } from "../shared/types";
 
 const LABEL: Record<string, string> = {
   working: "working", idle: "idle", needs_input: "needs your input",
-  delegating: "delegating to subagents", waiting_peer: "waiting for another agent", gone: "done",
+  delegating: "delegating to subagents", waiting_peer: "waiting for another agent",
+  compacting: "compacting its context", error: "error", gone: "done",
 };
 
 export function shortCwd(cwd: string | null): string {
@@ -22,7 +23,7 @@ export type Decision = "allow" | "deny" | "terminal";
 /// Builds the bubble once and returns an updater for the elapsed time, so the DOM (and its buttons)
 /// is not rebuilt every frame: a button replaced between mousedown and mouseup never gets its click.
 export function render(el: HTMLElement, v: AgentView, sinceOffset: number, onDecide?: (d: Decision) => void): (sinceOffset: number) => void {
-  const detail = v.visible === "needs_input" && v.waiting_for ? ` (${v.waiting_for})`
+  const detail = (v.visible === "needs_input" || v.visible === "error") && v.waiting_for ? ` (${v.waiting_for})`
                : v.visible === "waiting_peer" && v.peer ? ` → ${v.peer}` : "";
   const b = document.createElement("b");
   b.textContent = v.name;

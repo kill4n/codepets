@@ -78,7 +78,7 @@ struct AgentState { id: AgentId /* host + session_id */, name: String, cwd: Path
                     subagents: u32, since: Instant, last_hook_at: Option<Instant>,
                     last_seen: Instant }
 
-enum Visible { Working, Idle, NeedsInput, Delegating, WaitingPeer, Gone }
+enum Visible { Working, Idle, NeedsInput, Delegating, WaitingPeer, Compacting, Error, Gone }
 ```
 
 ## 4. State machine
@@ -94,6 +94,8 @@ time the poll rules. `delegating` takes priority over `working` while `subagents
 | `needs_input` | hook `PermissionRequest`; `Notification` with `permission_prompt`, `elicitation_dialog` or `idle_prompt`; poll `status: waiting` (stores `waitingFor`); background `state: blocked` | `UserPromptSubmit`, `PostToolUse`, poll `busy` |
 | `delegating` | `SubagentStart` (subagents += 1) | `SubagentStop` brings subagents to 0 |
 | `waiting_peer` | `PostToolUse` with `tool_name == "SendMessage"` (stores the recipient) followed by `Stop` or poll `idle` | `UserPromptSubmit` or poll `busy` |
+| `compacting` | hook `PreCompact` | hook `PostCompact` (back to `working`), any other turn event, or poll `idle`; poll `busy` keeps it |
+| `error` | hook `StopFailure` (stores the error kind in `waiting_for`) | `UserPromptSubmit`, any tool event, or poll `busy`; poll `idle` keeps it |
 | `gone` | `SessionEnd`; absent from the poll for 2 consecutive cycles; background `done`, `failed`, `stopped` | the same `session_id` reappears within the grace period (the close is cancelled) |
 
 Additional rules:
