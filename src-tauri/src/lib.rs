@@ -118,12 +118,6 @@ pub fn run() {
             let manifest = manifest.map(|m| windows::manager::effective_manifest(&m, cfg.size, cfg.show_name));
             cfg.pack = pack;
             let _ = cfg.save(&config_path());
-            // An install from an older version lacks newer events (the tray offers only "Disconnect"), so top it up.
-            let sp = installer::default_settings_path();
-            let current = std::fs::read_to_string(&sp).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
-            if current.is_some_and(|v| installer::is_installed(&v, &cfg.hook_url()) && !installer::is_up_to_date(&v, &cfg.hook_url())) {
-                if let Err(e) = installer::install(&sp, &cfg.hook_url(), &cfg.token) { log::warn!("cannot update hooks: {e}"); }
-            }
             // Sessions collected on this machine use a fixed host id: the OS hostname changes with the
             // network (Mac.lan vs name.local) and positions are keyed by host, so sprites would get lost.
             // Remote hosts (future multi-PC) carry their own id in the events they send.
@@ -157,11 +151,35 @@ pub fn run() {
                     Ok(a) => log::info!("hooks server on {a}"),
                     Err(e) => {
                         log::error!("hooks server failed to bind {addr}: {e}");
-                        st2.server_error.send_replace(Some(format!("hooks server could not bind {addr}: {e}")));
+                        let owner = if e.kind() == std::io::ErrorKind::AddrInUse { collector::port_owner::find_owner(addr.port()) } else { None };
+                        st2.server_error.send_replace(Some(collector::port_owner::bind_failure_message(&addr.to_string(), &e.to_string(), owner)));
                     }
                 }
             });
             collector::poller::spawn_poller(host.clone(), cfg.claude_path.clone(), tx.clone(), err_tx);
+
+            // Keep our hooks registered: tops up an install from an older version at launch and restores
+            // them when another tool rewrites settings.json (only if the user connected them).
+            let (st4, sp) = (state.clone(), installer::default_settings_path());
+            tauri::async_runtime::spawn(async move {
+                let mut tick = tokio::time::interval(Duration::from_secs(30));
+                loop {
+                    tick.tick().await;
+                    let cfg = st4.config.lock().unwrap().clone();
+                    let current = std::fs::read_to_string(&sp).ok().and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok());
+                    if installer::needs_repair(cfg.hooks_wanted, current.as_ref(), &cfg.hook_url()) {
+                        match installer::install(&sp, &cfg.hook_url(), &cfg.token) {
+                            Ok(()) => { log::info!("hooks were missing from settings.json: restored"); }
+                            Err(e) => log::warn!("cannot restore hooks: {e}"),
+                        }
+                    }
+                    if !cfg.hooks_wanted && current.is_some_and(|v| installer::is_installed(&v, &cfg.hook_url())) {
+                        let mut c = st4.config.lock().unwrap();
+                        c.hooks_wanted = true;
+                        let _ = c.save(&config_path());
+                    }
+                }
+            });
 
             // look for a new release shortly after launch and every few hours (not in dev builds)
             if !cfg!(debug_assertions) {

@@ -44,6 +44,9 @@ pub struct Config {
     /// Look for a new release on launch and every few hours.
     #[serde(default = "default_true")]
     pub auto_update: bool,
+    /// The user connected the hooks (set by install/uninstall); lets us notice when another tool wipes them.
+    #[serde(default)]
+    pub hooks_wanted: bool,
     /// Absolute path to the `claude` binary; overrides PATH lookup (GUI apps get a minimal PATH).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub claude_path: Option<String>,
@@ -51,7 +54,7 @@ pub struct Config {
 
 impl Default for Config {
     fn default() -> Self {
-        Self { port: 7433, token: generate_token(), pack: "default".into(), bind_all: false, size: SpriteSize::Normal, permission_wait_secs: 60, show_name: true, wander: true, wander_after_secs: 20, auto_update: true, claude_path: None }
+        Self { port: 7433, token: generate_token(), pack: "default".into(), bind_all: false, size: SpriteSize::Normal, permission_wait_secs: 60, show_name: true, wander: true, wander_after_secs: 20, auto_update: true, hooks_wanted: false, claude_path: None }
     }
 }
 
@@ -96,6 +99,11 @@ pub fn positions_path() -> PathBuf { config_dir().join("positions.json") }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn an_old_config_without_hooks_wanted_still_loads() {
+        let t: Config = serde_json::from_str(r#"{"port":7433,"token":"t","pack":"default","bind_all":false}"#).unwrap();
+        assert!(!t.hooks_wanted);
+    }
+
     #[test] fn token_is_32_hex() {
         let t = generate_token();
         assert_eq!(t.len(), 32);

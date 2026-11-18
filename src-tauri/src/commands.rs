@@ -235,7 +235,11 @@ pub fn do_set_hooks(app: &App, install: bool) -> Result<(), String> {
     let cfg = app.config.lock().unwrap().clone();
     let path = installer::default_settings_path();
     let r = if install { installer::install(&path, &cfg.hook_url(), &cfg.token) } else { installer::uninstall(&path, &cfg.hook_url()) };
-    r.map_err(|e| e.to_string())
+    r.map_err(|e| e.to_string())?;
+    let mut c = app.config.lock().unwrap();
+    c.hooks_wanted = install;
+    if let Err(e) = c.save(&config_path()) { log::warn!("cannot save config: {e}"); }
+    Ok(())
 }
 
 #[tauri::command]
