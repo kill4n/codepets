@@ -86,6 +86,13 @@ pub fn is_up_to_date(settings: &Value, url: &str) -> bool {
         .is_some_and(|arr| arr.iter().any(|g| group_has_url(g, url))))
 }
 
+/// Whether the hooks must be written again: the user wants them connected (or an older install is
+/// partly there) and some event lost ours, e.g. another tool rewrote settings.json. `None` = unreadable.
+pub fn needs_repair(wanted: bool, settings: Option<&Value>, url: &str) -> bool {
+    let Some(v) = settings else { return false };
+    (wanted || is_installed(v, url)) && !is_up_to_date(v, url)
+}
+
 fn read_settings(path: &Path) -> Result<Value, InstallError> {
     if !path.exists() { return Ok(json!({})); }
     let text = std::fs::read_to_string(path)?;
@@ -156,6 +163,19 @@ mod tests {
         s["hooks"].as_object_mut().unwrap().remove("PreCompact");
         assert!(is_installed(&s, URL) && !is_up_to_date(&s, URL));
         assert!(!is_up_to_date(&json!({}), URL));
+    }
+
+    #[test] fn repair_is_needed_only_when_wanted_hooks_went_missing() {
+        let mut full = json!({});
+        merge_hooks(&mut full, URL, "tok").unwrap();
+        let empty = json!({});
+        assert!(!needs_repair(true, Some(&full), URL), "intact");
+        assert!(needs_repair(true, Some(&empty), URL), "another tool wiped them");
+        assert!(!needs_repair(false, Some(&empty), URL), "the user disconnected on purpose");
+        assert!(!needs_repair(true, None, URL), "unreadable file: never write blindly");
+        let mut partial = full.clone();
+        partial["hooks"].as_object_mut().unwrap().remove("Stop");
+        assert!(needs_repair(false, Some(&partial), URL), "an older install is topped up even without the flag");
     }
 
     #[test] fn merge_into_empty_adds_all_events() {
